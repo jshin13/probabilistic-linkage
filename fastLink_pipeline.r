@@ -4,8 +4,21 @@ library(excel.link)
 library(fastLink)
 library(tidyverse)
 library(glue)
+library(uuid)
 
 source('fastLink_tools.R')
+
+#exception cases
+#1. different datasets must have different number of columns
+
+#note
+#several entries of the same patient from one dataset can be joined by 
+#the same element from another dataset multiple times
+#(e.g. John Doe (idx. 1, 2, 3) from dataset #1 can be all matched by 
+#John Doe (idx. 123) from dataset #2 multiple times)
+
+#switches
+EXPORT_ORIGINAL = TRUE #exports original datasets with the updated UUID
 
 #runtime start
 ptm = proc.time()
@@ -25,19 +38,30 @@ cols = list()            #df-wise columns
 
 #search columns
 colSEARCH = c("MRN", "FNAME", "LNAME", "ADDR", "CITY", "ZIP", "DOB", "PHONE")
-pSEARCH = c("FNAME", "LNAME", "ADDR")
-
-
+pSEARCH = c("FNAME", "LNAME", "ADDR") #columns for partial search
 
 #column name cleaning
 for (i in 1:dfNUM){
   temp = read.csv(listfile[i])
   temp = data.frame(lapply(temp, function(x){toupper(x)}))
+  
+  #initialize UUID if no UUID is found
+  if (!('UUID' %in% colnames(temp))){
+    temp = cbind(data.frame('UUID'=uuid_generator(length(temp[[1]]))), temp)
+  } 
+  #assign missing UUID if its column exists
+  #p1. pre-existing UUID
+  else{
+    emptyuuid = temp[['UUID']] == ''
+    if (sum(emptyuuid) > 0){
+      temp[['UUID']][emptyuuid] = uuid_generator(sum(emptyuuid))
+    }
+  }
+  
   names(temp) = toupper(names(temp))
   
   #clean phone number(not implemented yet)
   if (length(temp[['PHONE']]) != 0){
-    # temp[['PHONE']] = parse_number(temp[['PHONE']])
     temp[['PHONE']] = gsub('[^0-9.]', "", temp[['PHONE']])
     temp[['PHONE']] = gsub("(^\\d{3})(\\d{3})(\\d{4}$)", "\\1-\\2-\\3", temp[['PHONE']])
   }
@@ -65,9 +89,34 @@ for (i in 1:(dfNUM-1)){
 #calls probLink over all possible permutation without replacement
 temp = fullSurvey(df, df_sep, colist, pSEARCH)
 
+#export original datasets with the UUID update
+if (EXPORT_ORIGINAL){
+  export = temp[[4]]
+  listfile2 = gsub('\\b./data/\\b','', listfile) #only the file names
+  for (i in 1:dfNUM){
+    write.csv(export[[i]], glue('./export/{listfile2[[i]]}'), row.names = FALSE)
+  }
+}
+
+#extract matching list from temp df
+match_cat = temp[[3]]
+
+c = 0
+
+#extracting and reformatting only the non-matching list
+temp2 = list()
+
+for (i in 1:2){
+  for (j in 1:length(temp[[i]])){
+    c = c + 1
+    temp2[[c]] = temp[[i]][[j]]
+  }
+}
+
+temp = temp2
+
 idx = c()
 nonmatch_cat = list()
-match_cat = list()
 cnt = 0
 
 #get column dimension for joining 
@@ -76,44 +125,38 @@ for (i in 1:length(temp)){
   names(temp[[i]]) = toupper(names(temp[[i]]))
 }
 
-#extract matching list from temp df
-newidx = length(temp) - length(temp) / 3 + 1
-
-for (i in newidx:length(temp)){
-  cnt = cnt + 1
-  match_cat[[cnt]] = temp[[i]]
-}
-
 cnt = 0
 
-#extract non-matching list
+#extract and join non-matching list
 for (i in unique(idx[duplicated(idx)])){
   cnt = cnt + 1
   loc = which(idx == i)
   a = loc[1]
   b = loc[2]
-  nonmatch_cat[[cnt]] = unique(rbind(temp[[a]],temp[[b]]))
+  #changed from unique/rbind to intersect as non-matched element
+  #could be matched from other permutation pairs (3/13/2021)
+  nonmatch_cat[[cnt]] = intersect(temp[[a]],temp[[b]])
   
   if (length(loc) > 2){
     for (i in 3:length(loc)){
       a = loc[i]
-      nonmatch_cat[[cnt]] = unique(rbind(nonmatch_cat[[cnt]],temp[[a]]))
+      nonmatch_cat[[cnt]] = intersect(nonmatch_cat[[cnt]],temp[[a]])
     }
   }
 }
 
 #joining the first and second non-matching lists
-tempall = fastmerge(nonmatch_cat[[1]],nonmatch_cat[[2]])
+tempall = unique(fastmerge(nonmatch_cat[[1]],nonmatch_cat[[2]]))
 
 #joining the rest of the non-matching lists
 if (length(nonmatch_cat) != 2){
   for (i in 3:length(nonmatch_cat)){
-    tempall = fastmerge(tempall, nonmatch_cat[[i]])
+    tempall = unique(fastmerge(tempall, nonmatch_cat[[i]]))
   }
 }
 
 #link datasets sequentially
-for (i in 1:dfNUM){
+for (i in 1:length(match_cat)){
   
   a = matchidx[[i]][1]
   b = matchidx[[i]][2]
@@ -122,14 +165,18 @@ for (i in 1:dfNUM){
   col2 = cols[[b]]
 
   if (i == 1){
-    templist = findElement(match_cat[[i]], tempall, col1, col2);
+    tempall2 = tempall[0,]
+    tempall2[1,] = 0
+    templist = findElement(match_cat[[i]], tempall2, col1, col2);
   } else{
     templist = findElement(match_cat[[i]], templist[[1]], col1, col2);
   }
 }
 
 #final results
-results = templist[[1]]
+fdf = templist[[1]]
+fdf = fdf[2:dim(fdf)[1],]
+results = rbind(tempall, fdf) #joining nonmatch and match
 
 #save the finalized linked data
 write.csv(results, glue('./result/{Sys.Date()}_linked_data.csv'), row.names = FALSE)
