@@ -5,7 +5,7 @@ Joining several database using probabilistic linkage approach
 - [x] automatically assigns UUID to unique individual patient
 - [x] exports individual datasets to be used to update the database 
 - [x] the program runs much faster
-- [x] minor bugs
+- [x] minor bug fix
 
 2/11/21 <br>
 - [x] program now allows joining of N datasets without pre-configuration
