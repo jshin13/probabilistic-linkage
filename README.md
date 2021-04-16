@@ -1,6 +1,9 @@
 # probabilistic-linkage
 Joining several database using probabilistic linkage approach
 
+4/16/21 <br>
+- [x] added data analysis script that counts missing values for publication
+
 3/13/21 <br>
 - [x] automatically assigns UUID to unique individual patient
 - [x] exports individual datasets to be used to update the database 
