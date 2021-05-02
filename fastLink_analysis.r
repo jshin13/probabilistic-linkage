@@ -62,26 +62,43 @@ for (i in 1:dfNUM){
 df_summary = list()
 
 for (i in 1:5){
-  temp = data.frame(listfile[[i]])
+  temp = data.frame(listfile[[i]]) #initialize with the file name
   
   for (col in colSEARCH){
     if ( is.na(match(col, colnames(df[[i]]))) ){
-      var_i = paste('NA /', as.character(nrow(df[[i]])))
+      # var_i = paste('NA /', as.character(nrow(df[[i]])))
+      var_i = 'NA'
     }
     else{
       if (i == 1){
         temp_df = df[[i]][!duplicated(df[[i]]['ID']),]
-        var_i = paste( as.character((sum(temp_df[col] == '') + sum(is.na(temp_df[col])))), '/', as.character(nrow(temp_df[col])) )
+        # var_i = paste( as.character((sum(temp_df[col] == '') + sum(is.na(temp_df[col])))), '/', as.character(nrow(temp_df[col])) )
+        # var_i = (sum(temp_df[col] == '') + sum(is.na(temp_df[col]))) / nrow(temp_df[col])
+        var_i = sum(temp_df[col] == '') + sum(is.na(temp_df[col]))
       }
       else {
-        var_i = paste( as.character((sum(df[[i]][col] == '') + sum(is.na(df[[i]][col])))), '/', as.character(nrow(df[[i]][col])) )
+        # var_i = paste( as.character((sum(df[[i]][col] == '') + sum(is.na(df[[i]][col])))), '/', as.character(nrow(df[[i]][col])) )
+        # var_i = (sum(df[[i]][col] == '') + sum(is.na(df[[i]][col]))) / nrow(df[[i]][col])
+        var_i = sum(df[[i]][col] == '') + sum(is.na(df[[i]][col]))
       }
     }
-    temp = cbind(temp, data.frame(col=var_i))
+    temp = cbind(temp, data.frame(col=var_i)) #add new col
   }
-  df_summary = rbind(df_summary, temp)
+  temp = cbind(temp, data.frame(col=nrow(df[[i]][col]))) #add last column
+  
+  df_summary = rbind(df_summary, temp) #append new row
 }
 
-colnames(df_summary) = append('FILENAME', colSEARCH)
+colnames(df_summary) = c('FILENAME', colSEARCH, 'TOTAL')
+
+hotline_idx = grep('EsperanzaCallCenter', df_summary[[1]])
+
+for (i in 1:5){
+  if (i == hotline_idx){
+    df_summary[[1]][i] = 'HOTLINE'
+  } else{
+    df_summary[[1]][i] = 'TESTING'
+  }
+}
 
 write.csv(df_summary, "result/dataset_summary.csv")
