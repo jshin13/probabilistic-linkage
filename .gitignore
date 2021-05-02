@@ -6,3 +6,4 @@
 /dev
 /export
 .Rhistory
+.RData
