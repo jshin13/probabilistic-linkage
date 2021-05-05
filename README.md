@@ -1,6 +1,9 @@
 # probabilistic-linkage
 Joining several database using probabilistic linkage approach
 
+5/4/21 <br>
+- [x] generate figure for positivity rate over time
+
 4/29/21 <br>
 - [x] calculate positivity rate over time of testing
 - [x] calculate positivity rate by census tract number
